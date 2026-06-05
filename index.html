@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src *;">
   <title>멜론 티켓 시계</title>
   <style>
     body { 
@@ -59,7 +60,6 @@
     }
 
     function formatTime(ms) {
-      // UTC → KST (+9시간) 직접 계산
       const kstMs = ms + (9 * 60 * 60 * 1000);
       const d = new Date(kstMs);
       const h  = String(d.getUTCHours()).padStart(2, '0');
