@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>멜론 티켓 시계</title>
+</head>
+<body>
+  <h1 id="clock">동기화 중...</h1>
+  <p id="status"></p>
+
+  <script>
+    const PROXY = 'https://melon-time-proxy.vercel.app/api/melon-time';
+    let offset = 0;
+    let localBase = 0;
+
+    function sleep(ms) {
+      return new Promise(r => setTimeout(r, ms));
+    }
+
+    async function syncTime() {
+      const results = [];
+      for (let i = 0; i < 8; i++) {
+        const t0 = performance.now();
+        const res = await fetch(PROXY);
+        const data = await res.json();
+        const t1 = performance.now();
+        const rtt = t1 - t0;
+        const off = data.serverMs - (t0 + rtt / 2);
+        results.push({ rtt, off });
+        await sleep(200);
+      }
+      const best = results.sort((a, b) => a.rtt - b.rtt).slice(0, 3);
+      offset = best.reduce((s, r) => s + r.off, 0) / best.length;
+      localBase = performance.now();
+      document.getElementById('status').textContent =
+        `불확실도 ±${(best[0].rtt / 2).toFixed(1)}ms`;
+    }
+
+    function getMelonTime() {
+      return Date.now() + offset;
+    }
+
+    function formatTime(ms) {
+      const d = new Date(ms);
+      const h  = String(d.getHours()).padStart(2, '0');
+      const m  = String(d.getMinutes()).padStart(2, '0');
+      const s  = String(d.getSeconds()).padStart(2, '0');
+      const cs = String(Math.floor(d.getMilliseconds() / 10)).padStart(2, '0');
+      return `${h}:${m}:${s}.${cs}`;
+    }
+
+    function startClock() {
+      const tick = () => {
+        document.getElementById('clock').textContent = formatTime(getMelonTime());
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      setInterval(syncTime, 30000);
+    }
+
+    syncTime().then(startClock);
+  </script>
+</body>
+</html>
