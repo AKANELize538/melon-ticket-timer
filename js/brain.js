@@ -2,16 +2,30 @@
 //
 // This is intentionally pluggable: with no API key configured it uses a small
 // built-in responder so the demo works offline and for free. Once you add an
-// API key + endpoint in Settings (see index.html), it forwards the
-// conversation to that endpoint (e.g. a small serverless proxy in front of
-// Claude / OpenAI / any chat-completion API) and uses the real reply instead.
+// endpoint + API key in Settings, it calls that endpoint using the OpenAI
+// "chat completions" request/response shape — the same dialect spoken by
+// Groq, OpenAI, OpenRouter, Together AI, and most LLM gateways, so pointing
+// this at e.g. https://api.groq.com/openai/v1/chat/completions with a Groq
+// key and model "llama-3.3-70b-versatile" works with no extra glue code.
 //
-// Keys are stored only in the browser's localStorage — never commit one to
-// the repo.
+// SECURITY NOTE: whatever you type into Settings is saved only in this
+// browser's localStorage (never sent anywhere but your chosen endpoint, never
+// committed to the repo). Don't paste API keys into chat messages, issues, or
+// commits — once a key is shared in plain text it should be considered
+// compromised and rotated.
 
 const STORAGE_KEYS = {
   apiKey: 'kaguya_api_key',
   endpoint: 'kaguya_api_endpoint',
+  model: 'kaguya_api_model',
+};
+
+export const SUGGESTED_PRESETS = {
+  groq: {
+    label: 'Groq · Llama 3.3 70B (무료/매우 빠름)',
+    endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+    model: 'llama-3.3-70b-versatile',
+  },
 };
 
 export const SYSTEM_PROMPT = [
@@ -43,14 +57,17 @@ export class Brain {
   constructor() {
     this.apiKey = localStorage.getItem(STORAGE_KEYS.apiKey) || '';
     this.endpoint = localStorage.getItem(STORAGE_KEYS.endpoint) || '';
+    this.model = localStorage.getItem(STORAGE_KEYS.model) || '';
     this.history = [];
   }
 
-  setCredentials(apiKey, endpoint) {
+  setCredentials(apiKey, endpoint, model) {
     this.apiKey = apiKey.trim();
     this.endpoint = endpoint.trim();
+    this.model = model.trim();
     localStorage.setItem(STORAGE_KEYS.apiKey, this.apiKey);
     localStorage.setItem(STORAGE_KEYS.endpoint, this.endpoint);
+    localStorage.setItem(STORAGE_KEYS.model, this.model);
   }
 
   async reply(userText, langKey) {
@@ -74,15 +91,21 @@ export class Brain {
           Authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify({
-          system: SYSTEM_PROMPT,
-          language: langKey,
-          messages: this.history.slice(-10),
+          model: this.model || SUGGESTED_PRESETS.groq.model,
+          temperature: 0.8,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            ...this.history.slice(-10),
+          ],
         }),
       });
 
       if (!response.ok) throw new Error(`API ${response.status}`);
       const data = await response.json();
-      return data.reply || data.text || data.message || this._fallback(userText, langKey);
+      // OpenAI-compatible chat-completions shape (Groq, OpenAI, OpenRouter, ...)
+      const text = data.choices?.[0]?.message?.content
+        || data.reply || data.text || data.message;
+      return text || this._fallback(userText, langKey);
     } catch (err) {
       console.warn('Brain API call failed, falling back:', err);
       return this._fallback(userText, langKey);

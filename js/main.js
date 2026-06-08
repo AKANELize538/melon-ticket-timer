@@ -69,10 +69,22 @@ const vrmStatus = document.getElementById('vrm-status');
 
 const apiKeyInput = document.getElementById('api-key');
 const apiEndpointInput = document.getElementById('api-endpoint');
+const apiModelInput = document.getElementById('api-model');
 const saveCredsBtn = document.getElementById('save-creds');
+const personaSelect = document.getElementById('voice-persona');
 
 apiKeyInput.value = brain.apiKey;
 apiEndpointInput.value = brain.endpoint;
+apiModelInput.value = brain.model;
+
+const savedPersona = localStorage.getItem('kaguya_voice_persona') || 'girl';
+personaSelect.value = savedPersona;
+speech.setPersona(savedPersona);
+
+personaSelect.addEventListener('change', () => {
+  speech.setPersona(personaSelect.value);
+  localStorage.setItem('kaguya_voice_persona', personaSelect.value);
+});
 
 settingsBtn.addEventListener('click', () => settingsDialog.showModal());
 closeSettingsBtn.addEventListener('click', () => settingsDialog.close());
@@ -101,7 +113,7 @@ async function applyVrm(url, label) {
 }
 
 saveCredsBtn.addEventListener('click', () => {
-  brain.setCredentials(apiKeyInput.value, apiEndpointInput.value);
+  brain.setCredentials(apiKeyInput.value, apiEndpointInput.value, apiModelInput.value);
   saveCredsBtn.textContent = '저장됨 ✓';
   setTimeout(() => (saveCredsBtn.textContent = '저장'), 1500);
 });

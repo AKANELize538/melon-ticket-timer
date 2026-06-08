@@ -8,16 +8,37 @@ export const LANGUAGES = {
   en: { code: 'en-US', label: 'English' },
 };
 
-// Name fragments that usually belong to female-sounding system/browser voices.
-// Used to prefer a "girl" voice automatically when one is available.
-const FEMALE_VOICE_HINTS = [
-  'female', 'woman', 'girl',
-  'kyoko', 'o-ren', 'haruka', 'sayaka', 'ayumi', 'nanami', 'mizuki', 'yuna', 'madoka',
-  'google 日本語', 'google uk english female', 'google us english',
-  'siri', 'samantha', 'yuna', 'sora',
-];
+// Two voice "personas" Newrosama can speak in. Each lists name fragments that
+// usually belong to that kind of system/browser voice, plus a pitch/rate that
+// pushes the built-in voice toward that character.
+//   - girl:   bright, friendly anime-character tone (default)
+//   - jarvis: calm, composed "AI butler" tone, à la Iron Man's J.A.R.V.I.S.
+//             (works best in English — pick a UK male voice if your system has one)
+export const VOICE_PERSONAS = {
+  girl: {
+    label: '발랄한 소녀',
+    pitch: 1.15,
+    rate: 1.02,
+    hints: [
+      'female', 'woman', 'girl',
+      'kyoko', 'o-ren', 'haruka', 'sayaka', 'ayumi', 'nanami', 'mizuki', 'yuna', 'madoka',
+      'google 日本語', 'google uk english female', 'google us english',
+      'siri', 'samantha', 'sora',
+    ],
+  },
+  jarvis: {
+    label: '차분한 집사 AI (JARVIS 스타일)',
+    pitch: 0.86,
+    rate: 0.95,
+    hints: [
+      'male', 'man', 'daniel', 'george', 'ryan', 'arthur', 'oliver', 'fred',
+      'aaron', 'guy', 'gordon', 'james', 'alex',
+      'google uk english male', 'microsoft george', 'microsoft ryan',
+    ],
+  },
+};
 
-function pickVoice(langCode) {
+function pickVoice(langCode, persona) {
   const voices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
   if (!voices.length) return null;
 
@@ -26,10 +47,11 @@ function pickVoice(langCode) {
   const sameBase = voices.filter((v) => v.lang.toLowerCase().startsWith(base));
   const pool = sameLang.length ? sameLang : sameBase.length ? sameBase : voices;
 
-  const female = pool.find((v) =>
-    FEMALE_VOICE_HINTS.some((hint) => v.name.toLowerCase().includes(hint))
+  const hints = (VOICE_PERSONAS[persona] || VOICE_PERSONAS.girl).hints;
+  const matched = pool.find((v) =>
+    hints.some((hint) => v.name.toLowerCase().includes(hint))
   );
-  return female || pool[0];
+  return matched || pool[0];
 }
 
 export class SpeechController {
@@ -37,6 +59,7 @@ export class SpeechController {
     const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
     this.supported = !!SpeechRecognitionImpl;
     this.lang = 'ko';
+    this.persona = 'girl';
     this.onSpeakChange = onSpeakChange;
     this.onError = onError;
 
@@ -70,6 +93,11 @@ export class SpeechController {
     if (this.recognition) this.recognition.lang = LANGUAGES[key].code;
   }
 
+  setPersona(key) {
+    if (!VOICE_PERSONAS[key]) return;
+    this.persona = key;
+  }
+
   startListening() {
     if (!this.recognition) return;
     speechSynthesis?.cancel();
@@ -85,17 +113,18 @@ export class SpeechController {
     this.recognition?.stop();
   }
 
-  speak(text, langKey = this.lang) {
+  speak(text, langKey = this.lang, personaKey = this.persona) {
     if (!window.speechSynthesis || !text) return;
     speechSynthesis.cancel();
 
     const langCode = (LANGUAGES[langKey] || LANGUAGES.en).code;
+    const persona = VOICE_PERSONAS[personaKey] || VOICE_PERSONAS.girl;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = langCode;
-    utterance.rate = 1.02;
-    utterance.pitch = 1.15; // slightly higher pitch -> friendlier "girl character" tone
+    utterance.rate = persona.rate;
+    utterance.pitch = persona.pitch;
 
-    const voice = pickVoice(langCode);
+    const voice = pickVoice(langCode, personaKey);
     if (voice) utterance.voice = voice;
 
     utterance.onstart = () => this.onSpeakChange?.(true);
