@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src *;">
+  <title>멜론 티켓 시계</title>
+  <style>
+    body { 
+      display: flex; flex-direction: column; align-items: center; 
+      justify-content: center; height: 100vh; margin: 0;
+      background: #000; color: #fff; font-family: monospace;
+    }
+    #clock { font-size: 72px; font-weight: bold; letter-spacing: 4px; }
+    #status { font-size: 14px; color: #888; margin-top: 12px; }
+    #sync { font-size: 12px; color: #555; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div id="clock">동기화 중...</div>
+  <div id="status"></div>
+  <div id="sync"></div>
+
+  <script>
+    const PROXY = 'https://melon-time-proxy.vercel.app/api/melon-time';
+    let offset = 0;
+
+    function sleep(ms) {
+      return new Promise(r => setTimeout(r, ms));
+    }
+
+    async function syncTime() {
+      document.getElementById('sync').textContent = '동기화 중...';
+      const results = [];
+
+      for (let i = 0; i < 8; i++) {
+        try {
+          const t0 = performance.now();
+          const res = await fetch(PROXY + '?t=' + t0);
+          const data = await res.json();
+          const t1 = performance.now();
+          const rtt = t1 - t0;
+          const off = data.serverMs - (t0 + rtt / 2);
+          results.push({ rtt, off });
+        } catch(e) {}
+        await sleep(200);
+      }
+
+      const best = results.sort((a, b) => a.rtt - b.rtt).slice(0, 3);
+      offset = best.reduce((s, r) => s + r.off, 0) / best.length;
+
+      document.getElementById('status').textContent = 
+        `불확실도 ±${(best[0].rtt / 2).toFixed(1)}ms`;
+      document.getElementById('sync').textContent = 
+        `마지막 동기화: ${new Date().toLocaleTimeString('ko-KR')}`;
+    }
+
+    function getMelonTime() {
+      return Date.now() + offset;
+    }
+
+    function formatTime(ms) {
+      const kstMs = ms + (9 * 60 * 60 * 1000);
+      const d = new Date(kstMs);
+      const h  = String(d.getUTCHours()).padStart(2, '0');
+      const m  = String(d.getUTCMinutes()).padStart(2, '0');
+      const s  = String(d.getUTCSeconds()).padStart(2, '0');
+      const cs = String(Math.floor(d.getUTCMilliseconds() / 10)).padStart(2, '0');
+      return `${h}:${m}:${s}.${cs}`;
+    }
+
+    function startClock() {
+      const tick = () => {
+        document.getElementById('clock').textContent = formatTime(getMelonTime());
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      setInterval(syncTime, 30000);
+    }
+
+    syncTime().then(startClock);
+  </script>
+</body>
+</html>
