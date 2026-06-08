@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+    script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cubism.live2d.com;
     style-src 'self' 'unsafe-inline';
     connect-src *;
     img-src 'self' data: blob: https:;
@@ -14,15 +14,6 @@
   ">
   <title>Newrosama — Project Kaguya</title>
   <link rel="stylesheet" href="css/style.css">
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-      "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@2.1.3/lib/three-vrm.module.js"
-    }
-  }
-  </script>
 </head>
 <body>
   <div id="app">
@@ -40,7 +31,7 @@
 
       <div id="caption">
         <p id="user-line"></p>
-        <p id="ai-line">안녕! 나는 뉴로사마야 🌙 마이크 버튼을 누르고 한국어, 일본어, 영어로 말을 걸어줘!</p>
+        <p id="ai-line">やあ! ニューロサマだよ 🌙 マイクボタンを押して話しかけてね！ (한국어 / English도 OK)</p>
       </div>
 
       <div id="controls">
@@ -51,24 +42,26 @@
 
     <dialog id="settings">
       <div class="settings-body">
-        <h2>아바타 불러오기</h2>
+        <h2>Live2D 모델 불러오기</h2>
         <p class="hint">
-          무료 VRM 아바타를 만들거나 받을 수 있는 곳: VRoid Studio(직접 제작),
-          VRoid Hub(커뮤니티 모델 다운로드). 자세한 안내는 저장소의
-          <code>docs/free-resources.md</code> 문서를 확인하세요.
+          Live2D 모델 파일(<code>.model3.json</code>)을 로드하면 뉴로사마가 살아 움직여요.
+          무료 모델을 어디서 구할 수 있는지는
+          <code>docs/free-resources.md</code>를 확인하세요.
+          라이브러리가 필요해요 — 아래의 "로드 안 됨" 상태가 뜨면
+          <code>SETUP.md</code> 안내를 따라 SDK 파일을 추가해주세요.
         </p>
         <div class="field">
-          <label for="vrm-file">내 컴퓨터에서 .vrm 파일 선택</label>
-          <input type="file" id="vrm-file" accept=".vrm">
+          <label for="model-file">내 컴퓨터에서 모델 폴더 선택 (model3.json)</label>
+          <input type="file" id="model-file" accept=".json,application/json">
         </div>
         <div class="row">
           <div class="field">
-            <label for="vrm-url">또는 .vrm 파일 URL 입력</label>
-            <input type="text" id="vrm-url" placeholder="https://example.com/my-avatar.vrm">
+            <label for="model-url">또는 .model3.json URL 입력</label>
+            <input type="text" id="model-url" placeholder="https://example.com/model/model.model3.json">
           </div>
-          <button class="btn primary" id="load-vrm" style="align-self:flex-end; height:40px;">불러오기</button>
+          <button class="btn primary" id="load-model" style="align-self:flex-end; height:40px;">불러오기</button>
         </div>
-        <p id="vrm-status" class="hint"></p>
+        <p id="model-status" class="hint"></p>
 
         <hr class="sep">
 
@@ -91,14 +84,10 @@
         <p class="hint">
           비워두면 데모용 답변으로 작동해요. 아래는 <strong>Groq의 무료
           Llama 3.3 70B</strong>를 바로 연결하는 예시 — Groq 콘솔에서 발급받은
-          키를 붙여넣고 저장하면 끝이에요(OpenAI 호환 형식이라 다른 LLM
-          제공자도 같은 방식으로 연결할 수 있어요).<br><br>
+          키를 붙여넣고 저장하면 끝이에요.<br><br>
           ⚠️ <strong>키는 이 입력창에만 붙여넣으세요.</strong> 채팅창이나
-          이슈, 커밋에 적으면 그 순간 노출된 것으로 간주하고 즉시 재발급해야
-          해요. 여기 입력한 값은 이 브라우저의 localStorage에만 저장되고
-          저장소(repo)에는 절대 올라가지 않아요. 만약 호출 시 CORS 오류가
-          뜨면, 브라우저가 아니라 작은 프록시 서버를 통해 호출하도록
-          바꿔야 해요(ROADMAP.md Phase 4 참고).
+          이슈, 커밋에 적으면 즉시 노출된 것으로 간주해요.
+          입력값은 이 브라우저의 localStorage에만 저장돼요.
         </p>
         <div class="field">
           <label for="api-endpoint">엔드포인트 URL</label>
@@ -122,6 +111,20 @@
       </div>
     </dialog>
   </div>
+
+  <!--
+    Live2D dependency loading order — all three must load before main.js:
+      1. PIXI.js       — 2D renderer, creates window.PIXI
+      2. live2dcubism  — Live2D Cubism Core, registers cubism internals
+      3. pixi-live2d   — bridges PIXI + Cubism, adds PIXI.live2d.Live2DModel
+
+    If live2dcubismcore.min.js fails (404), download the free "Cubism SDK
+    for Web" from https://www.live2d.com/download/cubism-sdk/ and place the
+    file at libs/live2dcubismcore.min.js, then switch the src below.
+  -->
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.3.3/dist/pixi.min.js"></script>
+  <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
 
   <script type="module" src="js/main.js"></script>
 </body>

@@ -10,7 +10,7 @@ const aiLine = document.getElementById('ai-line');
 const micBtn = document.getElementById('mic-btn');
 const langButtons = [...document.querySelectorAll('#lang-switch button')];
 
-let currentLang = 'ko';
+let currentLang = 'ja'; // Newrosama speaks Japanese by default
 
 const speech = new SpeechController({
   onResult: handleUserSpeech,
@@ -23,11 +23,15 @@ const speech = new SpeechController({
   },
 });
 speech.setLanguage(currentLang);
+speech.setPersona('girl');
+
+// Reflect default language in the buttons
+langButtons.forEach((b) => b.classList.toggle('active', b.dataset.lang === currentLang));
 
 if (!speech.supported) {
   micBtn.disabled = true;
   micBtn.title = '이 브라우저는 음성 인식을 지원하지 않아요. Chrome이나 Edge를 사용해보세요.';
-  aiLine.textContent = '이 브라우저는 음성 인식을 지원하지 않아. Chrome이나 Edge에서 열어줘!';
+  aiLine.textContent = 'このブラウザは音声認識に対応していないよ。ChromeかEdgeを使ってね！';
 }
 
 langButtons.forEach((btn) => {
@@ -50,22 +54,21 @@ micBtn.addEventListener('click', () => {
 async function handleUserSpeech(text) {
   userLine.textContent = `🗣️ ${text}`;
   aiLine.textContent = '...';
-
   const reply = await brain.reply(text, currentLang);
   aiLine.textContent = reply;
   speech.speak(reply, currentLang);
 }
 
-// ---- Settings dialog: avatar (VRM) loader + AI brain credentials ----------
+// ---- Settings dialog --------------------------------------------------------
 
 const settingsBtn = document.getElementById('settings-btn');
 const settingsDialog = document.getElementById('settings');
 const closeSettingsBtn = document.getElementById('close-settings');
 
-const vrmFileInput = document.getElementById('vrm-file');
-const vrmUrlInput = document.getElementById('vrm-url');
-const loadVrmBtn = document.getElementById('load-vrm');
-const vrmStatus = document.getElementById('vrm-status');
+const modelFileInput = document.getElementById('model-file');
+const modelUrlInput = document.getElementById('model-url');
+const loadModelBtn = document.getElementById('load-model');
+const modelStatus = document.getElementById('model-status');
 
 const apiKeyInput = document.getElementById('api-key');
 const apiEndpointInput = document.getElementById('api-endpoint');
@@ -89,27 +92,29 @@ personaSelect.addEventListener('change', () => {
 settingsBtn.addEventListener('click', () => settingsDialog.showModal());
 closeSettingsBtn.addEventListener('click', () => settingsDialog.close());
 
-vrmFileInput.addEventListener('change', async () => {
-  const file = vrmFileInput.files?.[0];
+modelFileInput.addEventListener('change', async () => {
+  const file = modelFileInput.files?.[0];
   if (!file) return;
-  await applyVrm(URL.createObjectURL(file), file.name);
+  await applyModel(URL.createObjectURL(file), file.name);
 });
 
-loadVrmBtn.addEventListener('click', async () => {
-  const url = vrmUrlInput.value.trim();
+loadModelBtn.addEventListener('click', async () => {
+  const url = modelUrlInput.value.trim();
   if (!url) return;
-  await applyVrm(url, url);
+  await applyModel(url, url);
 });
 
-async function applyVrm(url, label) {
-  vrmStatus.textContent = `"${label}" 불러오는 중...`;
+async function applyModel(url, label) {
+  modelStatus.textContent = `"${label}" 불러오는 중...`;
+  loadModelBtn.disabled = true;
   try {
-    await stage.loadVRM(url);
-    vrmStatus.textContent = '아바타 적용 완료! ✓';
+    await stage.loadModel(url);
+    modelStatus.textContent = '모델 적용 완료! ✓';
   } catch (err) {
     console.error(err);
-    vrmStatus.textContent = `불러오기 실패: ${err.message || err}`;
+    modelStatus.textContent = `불러오기 실패: ${err.message || err}`;
   }
+  loadModelBtn.disabled = false;
 }
 
 saveCredsBtn.addEventListener('click', () => {

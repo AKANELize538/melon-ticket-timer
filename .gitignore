@@ -1,0 +1,6 @@
+# Live2D Cubism Core is proprietary — must be downloaded separately (see SETUP.md)
+libs/live2dcubismcore.min.js
+
+# OS files
+.DS_Store
+Thumbs.db

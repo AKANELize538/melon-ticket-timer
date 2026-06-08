@@ -1,4 +1,46 @@
-# 무료로 일본어 여성 목소리(TTS)와 3D 아바타 구하기
+# 무료로 Live2D 모델 · JP 여성 목소리 · 3D 아바타 구하기
+
+## 0. Live2D 모델 — 어디서 구하나요?
+
+이 앱은 `.model3.json` 파일(Cubism 4 포맷)을 로드하면 뉴로사마가 진짜로
+살아 움직여요. 아래 곳에서 무료 모델을 구할 수 있어요.
+
+### 📥 무료 Live2D 모델 다운로드 목록
+
+| 사이트 | 내용 | 주소 |
+|---|---|---|
+| **Live2D 공식 샘플** | Haru, Mao, Natori 등 공식 무료 샘플 모델 5종+ | https://www.live2d.com/download/sample-data/ |
+| **nizima (니지마)** | Live2D 공식 마켓, "무료" 필터로 검색 | https://nizima.com/ |
+| **Booth.pm** | 동인 마켓, "Live2D 무료" 검색 | https://booth.pm/ |
+| **GitHub 검색** | `"live2d model free"` 키워드로 오픈소스 모델 검색 | https://github.com/ |
+
+### 📦 모델 파일 구조 (로드 방법)
+Live2D 모델 폴더를 받으면 아래처럼 생겼어요:
+```
+model-folder/
+  ├── model.model3.json   ← 이 파일을 앱 설정에서 로드해요
+  ├── textures/
+  │   └── texture_00.png
+  ├── motions/
+  └── ...
+```
+⚙ 설정 창 → "model3.json URL 입력" 또는 "파일 선택"에서
+**model.model3.json** (폴더 안의 `.model3.json` 파일)을 지정하면 돼요.
+
+단, **CORS 제한** 때문에 원격 URL은 서버가 `Access-Control-Allow-Origin: *`
+헤더를 허용해야 로드될 수 있어요. 로컬 파일 선택(파일 업로드 방식)이 가장
+간단해요.
+
+### 🛠️ SDK 파일 설치 (라이브러리가 로드 안 될 때)
+앱이 `live2dcubismcore.min.js`를 CDN(`cubism.live2d.com`)에서 받아오는데,
+일부 환경(방화벽, 오프라인)에서 막힐 수 있어요. 그럴 때:
+1. https://www.live2d.com/download/cubism-sdk/ 에서
+   "Cubism SDK for Web" 무료 다운로드 (계정 필요)
+2. 받은 압축 파일 안의 `Core/live2dcubismcore.min.js`를
+   이 프로젝트의 **`libs/` 폴더** 에 복사
+3. `index.html` 안의 CDN 주소를 `libs/live2dcubismcore.min.js` 로 교체
+
+---
 
 ## 1. 일본어 "여자아이" 목소리 (TTS)
 
