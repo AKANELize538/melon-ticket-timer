@@ -51,12 +51,15 @@
           <code>SETUP.md</code> 안내를 따라 SDK 파일을 추가해주세요.
         </p>
         <div class="field">
-          <label for="model-file">내 컴퓨터에서 모델 폴더 선택 (model3.json)</label>
-          <input type="file" id="model-file" accept=".json,application/json">
+          <label for="model-file">내 컴퓨터에서 <strong>모델 폴더 전체</strong> 선택 (mao_pro_ko 폴더)</label>
+          <input type="file" id="model-file" webkitdirectory directory multiple>
+          <span class="hint" style="display:block;margin-top:4px">
+            ※ Live2D는 폴더 전체(.moc3·텍스처·모션 포함)가 필요해요. 단일 파일 X
+          </span>
         </div>
         <div class="row">
           <div class="field">
-            <label for="model-url">또는 .model3.json URL 입력</label>
+            <label for="model-url">또는 .model3.json URL 입력 (GitHub Pages 등)</label>
             <input type="text" id="model-url" placeholder="https://example.com/model/model.model3.json">
           </div>
           <button class="btn primary" id="load-model" style="align-self:flex-end; height:40px;">불러오기</button>

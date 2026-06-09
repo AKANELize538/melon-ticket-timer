@@ -43,21 +43,42 @@ export class AvatarStage {
 
     this.app.ticker.add((dt) => {
       this._t += dt * 0.016; // ~real seconds
-      if (this.placeholder.visible) this._drawPlaceholder();
+      if (this.placeholder.visible) {
+        this._drawPlaceholder();
+      } else if (this.live2dModel) {
+        this._driveLipSync();
+      }
     });
   }
 
   setTalking(isTalking) {
     this._talking = isTalking;
-    if (this.live2dModel) {
-      try {
-        this.live2dModel.motion(isTalking ? 'tap_body' : 'idle');
-      } catch {}
+  }
+
+  // Continuously drive the Live2D mouth-open parameter so the model's lips
+  // move while Newrosama is speaking. Falls back silently if the model has
+  // no such parameter.
+  _driveLipSync() {
+    const core = this.live2dModel?.internalModel?.coreModel;
+    if (!core) return;
+    const target = this._talking
+      ? Math.abs(Math.sin(this._t * 14)) * 0.9
+      : 0;
+    try {
+      core.setParameterValueById('ParamMouthOpenY', target);
+    } catch {
+      // Some models name the param differently; ignore if missing.
     }
   }
 
-  /** Load a Cubism 4 Live2D model from a URL pointing to a .model3.json file. */
-  async loadModel(url) {
+  /**
+   * Load a Cubism 4 Live2D model.
+   * @param {string|File[]} source  Either a URL to a .model3.json, OR an array
+   *   of File objects (the whole model folder picked via an <input webkitdirectory>).
+   *   A Live2D model is never a single file — it needs its .moc3, textures and
+   *   motions alongside — so folder/URL loading is required, not single-file.
+   */
+  async loadModel(source) {
     const Live2DModel = window.PIXI?.live2d?.Live2DModel;
     if (!Live2DModel) {
       throw new Error(
@@ -73,7 +94,7 @@ export class AvatarStage {
       this.live2dModel = null;
     }
 
-    const model = await Live2DModel.from(url, { autoInteract: true });
+    const model = await Live2DModel.from(source, { autoInteract: true });
     this.placeholder.visible = false;
     this.live2dModel = model;
     this.app.stage.addChild(model);

@@ -93,9 +93,16 @@ settingsBtn.addEventListener('click', () => settingsDialog.showModal());
 closeSettingsBtn.addEventListener('click', () => settingsDialog.close());
 
 modelFileInput.addEventListener('change', async () => {
-  const file = modelFileInput.files?.[0];
-  if (!file) return;
-  await applyModel(URL.createObjectURL(file), file.name);
+  const files = [...(modelFileInput.files || [])];
+  if (!files.length) return;
+  const settings = files.find((f) => f.name.endsWith('.model3.json'));
+  if (!settings) {
+    modelStatus.textContent =
+      '폴더 안에 .model3.json 파일이 없어요. 모델 폴더 전체를 선택했는지 확인해주세요.';
+    return;
+  }
+  // pixi-live2d-display accepts the whole File[] and resolves siblings itself.
+  await applyModel(files, settings.name);
 });
 
 loadModelBtn.addEventListener('click', async () => {
@@ -104,11 +111,11 @@ loadModelBtn.addEventListener('click', async () => {
   await applyModel(url, url);
 });
 
-async function applyModel(url, label) {
+async function applyModel(source, label) {
   modelStatus.textContent = `"${label}" 불러오는 중...`;
   loadModelBtn.disabled = true;
   try {
-    await stage.loadModel(url);
+    await stage.loadModel(source);
     modelStatus.textContent = '모델 적용 완료! ✓';
   } catch (err) {
     console.error(err);
