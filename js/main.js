@@ -1,6 +1,7 @@
 import { AvatarStage } from './avatar.js';
 import { SpeechController } from './speech.js';
 import { Brain } from './brain.js';
+import { CONFIG } from './config.js';
 
 const stage = new AvatarStage(document.getElementById('stage'));
 const brain = new Brain();
@@ -10,7 +11,7 @@ const aiLine = document.getElementById('ai-line');
 const micBtn = document.getElementById('mic-btn');
 const langButtons = [...document.querySelectorAll('#lang-switch button')];
 
-let currentLang = 'ja'; // Newrosama speaks Japanese by default
+let currentLang = CONFIG.defaultLang || 'ja'; // Newrosama speaks Japanese by default
 
 const speech = new SpeechController({
   onResult: handleUserSpeech,
@@ -124,6 +125,19 @@ async function applyModel(source, label) {
   loadModelBtn.disabled = false;
 }
 
+// Auto-load the configured model on startup (best for the tablet demo).
+// If the file isn't uploaded yet, fail quietly and keep the placeholder.
+if (CONFIG.autoLoadModel && CONFIG.modelPath) {
+  (async () => {
+    try {
+      const head = await fetch(CONFIG.modelPath, { method: 'HEAD' });
+      if (head.ok) await stage.loadModel(CONFIG.modelPath);
+    } catch {
+      // model not uploaded yet — placeholder stays, no noise
+    }
+  })();
+}
+
 saveCredsBtn.addEventListener('click', () => {
   brain.setCredentials(apiKeyInput.value, apiEndpointInput.value, apiModelInput.value);
   saveCredsBtn.textContent = '저장됨 ✓';
@@ -132,48 +146,52 @@ saveCredsBtn.addEventListener('click', () => {
 
 // ---- VOICEVOX settings ------------------------------------------------------
 
-const voicevoxEnable = document.getElementById('voicevox-enable');
+const voicevoxMode = document.getElementById('voicevox-mode');
 const voicevoxSpeaker = document.getElementById('voicevox-speaker');
-const voicevoxEndpoint = document.getElementById('voicevox-endpoint');
+const voicevoxKey = document.getElementById('voicevox-key');
 const saveVoicevoxBtn = document.getElementById('save-voicevox');
 const voicevoxStatus = document.getElementById('voicevox-status');
 
-// Restore saved settings
-voicevoxEnable.checked = localStorage.getItem('kaguya_vv_enabled') === 'true';
-voicevoxSpeaker.value = localStorage.getItem('kaguya_vv_speaker') || '14';
-voicevoxEndpoint.value = localStorage.getItem('kaguya_vv_endpoint') || 'http://localhost:50021';
+// Restore saved settings (key is kept only in localStorage, never committed)
+voicevoxMode.value = localStorage.getItem('kaguya_vv_mode') || CONFIG.voicevox.mode || 'web';
+voicevoxSpeaker.value = localStorage.getItem('kaguya_vv_speaker') || String(CONFIG.voicevox.speakerId || 14);
+voicevoxKey.value = localStorage.getItem('kaguya_vv_webkey') || '';
 
 // Apply on load
-speech.configureVoicevox(voicevoxEnable.checked, voicevoxSpeaker.value, voicevoxEndpoint.value);
+speech.configureVoicevox({
+  mode: voicevoxMode.value,
+  speakerId: voicevoxSpeaker.value,
+  webKey: voicevoxKey.value,
+});
 
 saveVoicevoxBtn.addEventListener('click', async () => {
-  const enabled = voicevoxEnable.checked;
-  const speakerId = parseInt(voicevoxSpeaker.value) || 8;
-  const endpoint = voicevoxEndpoint.value.trim() || 'http://localhost:50021';
+  const mode = voicevoxMode.value;
+  const speakerId = parseInt(voicevoxSpeaker.value) || 14;
+  const webKey = voicevoxKey.value.trim();
 
-  localStorage.setItem('kaguya_vv_enabled', enabled);
-  localStorage.setItem('kaguya_vv_speaker', speakerId);
-  localStorage.setItem('kaguya_vv_endpoint', endpoint);
-  speech.configureVoicevox(enabled, speakerId, endpoint);
+  localStorage.setItem('kaguya_vv_mode', mode);
+  localStorage.setItem('kaguya_vv_speaker', String(speakerId));
+  localStorage.setItem('kaguya_vv_webkey', webKey);
+  speech.configureVoicevox({ mode, speakerId, webKey });
 
-  if (enabled) {
-    voicevoxStatus.textContent = '연결 테스트 중...';
+  saveVoicevoxBtn.textContent = '저장됨 ✓';
+  setTimeout(() => (saveVoicevoxBtn.textContent = '저장'), 1500);
+
+  // Quick reachability check so you know it'll work before the demo.
+  if (mode === 'web') {
+    voicevoxStatus.textContent = '웹 VOICEVOX 사용 — 마이크로 한 번 말해보면 히마리 목소리가 나와요.';
+  } else if (mode === 'local') {
+    voicevoxStatus.textContent = 'VOICEVOX 앱 연결 테스트 중...';
     try {
-      const res = await fetch(`${endpoint}/speakers`, { method: 'GET' });
-      if (res.ok) {
-        const speakers = await res.json();
-        voicevoxStatus.textContent =
-          `연결 성공 ✓ — 사용 가능한 보이스 ${speakers.length}개`;
-      } else {
-        voicevoxStatus.textContent = `서버 응답 오류: ${res.status}`;
-      }
+      const res = await fetch('http://localhost:50021/speakers');
+      voicevoxStatus.textContent = res.ok
+        ? '로컬 VOICEVOX 연결 성공 ✓'
+        : `서버 응답 오류: ${res.status}`;
     } catch {
       voicevoxStatus.textContent =
-        '연결 실패 — VOICEVOX가 실행 중인지 확인해주세요 (또는 HTTPS 혼합 콘텐츠 차단)';
+        '로컬 연결 실패 — VOICEVOX 앱이 실행 중인지 확인하세요(태블릿에선 불가, 웹 모드를 쓰세요).';
     }
   } else {
-    voicevoxStatus.textContent = '';
-    saveVoicevoxBtn.textContent = '저장됨 ✓';
-    setTimeout(() => (saveVoicevoxBtn.textContent = '저장'), 1500);
+    voicevoxStatus.textContent = '브라우저 기본 음성을 사용해요.';
   }
 });

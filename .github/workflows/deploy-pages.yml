@@ -1,0 +1,47 @@
+name: Deploy Newrosama to GitHub Pages
+
+# Deploys the static site (this whole repo) to GitHub Pages on every push
+# to the demo branch. The site is plain HTML/CSS/JS, so no build step is
+# needed — we just upload the repo as-is.
+#
+# ONE-TIME SETUP (do this once in the GitHub web UI):
+#   Repo → Settings → Pages → "Build and deployment" → Source: GitHub Actions
+# After that, every push here auto-publishes to:
+#   https://<your-username>.github.io/melon-ticket-timer/
+
+on:
+  push:
+    branches:
+      - claude/newrosama-3d-ai-character-nLNed
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

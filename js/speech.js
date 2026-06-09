@@ -38,12 +38,22 @@ export const VOICE_PERSONAS = {
   },
 };
 
-// Default VOICEVOX configuration.
+// VOICEVOX configuration.
 // Speaker 14 = 冥鳴ひまり (ノーマル) — selected for Mao.
+//
+// mode:
+//   'off'            — never use VOICEVOX, just the browser voice
+//   'web'            — hosted VOICEVOX over HTTPS (api.tts.quest). Works on a
+//                      phone/tablet + GitHub Pages. No install needed.
+//                      ★ default for the web/tablet demo. Optional key = faster.
+//   'local'          — VOICEVOX desktop app on http://localhost:50021.
+//                      Highest quality + instant, but desktop only.
 const VOICEVOX_DEFAULTS = {
-  enabled: false,
+  mode: 'web',
   speakerId: 14,
-  endpoint: 'http://localhost:50021',
+  localEndpoint: 'http://localhost:50021',
+  webEndpoint: 'https://api.tts.quest/v3/voicevox/synthesis',
+  webKey: '', // optional tts.quest key; set via Settings, never committed
 };
 
 function pickBrowserVoice(langCode, persona) {
@@ -106,11 +116,13 @@ export class SpeechController {
     this.persona = key;
   }
 
-  configureVoicevox(enabled, speakerId, endpoint) {
+  configureVoicevox({ mode, speakerId, localEndpoint, webEndpoint, webKey } = {}) {
     this.voicevox = {
-      enabled: !!enabled,
-      speakerId: Number(speakerId) || VOICEVOX_DEFAULTS.speakerId,
-      endpoint: endpoint || VOICEVOX_DEFAULTS.endpoint,
+      mode: mode || this.voicevox.mode || VOICEVOX_DEFAULTS.mode,
+      speakerId: Number(speakerId) || this.voicevox.speakerId || VOICEVOX_DEFAULTS.speakerId,
+      localEndpoint: localEndpoint || this.voicevox.localEndpoint || VOICEVOX_DEFAULTS.localEndpoint,
+      webEndpoint: webEndpoint || this.voicevox.webEndpoint || VOICEVOX_DEFAULTS.webEndpoint,
+      webKey: webKey ?? this.voicevox.webKey ?? VOICEVOX_DEFAULTS.webKey,
     };
   }
 
@@ -133,14 +145,19 @@ export class SpeechController {
     if (!text) return;
     speechSynthesis?.cancel();
 
-    // Use VOICEVOX for Japanese when it's enabled.
-    if (this.voicevox.enabled && langKey === 'ja') {
+    // VOICEVOX (Himari) only applies to Japanese; other languages use browser TTS.
+    const vv = this.voicevox;
+    if (langKey === 'ja' && vv.mode !== 'off') {
       try {
-        await this._speakVoicevox(text, this.voicevox.speakerId, this.voicevox.endpoint);
+        if (vv.mode === 'web') {
+          await this._speakVoicevoxWeb(text, vv.speakerId, vv.webEndpoint, vv.webKey);
+        } else {
+          await this._speakVoicevoxLocal(text, vv.speakerId, vv.localEndpoint);
+        }
         return;
       } catch (err) {
-        console.warn('VOICEVOX 연결 실패 — 브라우저 TTS로 대체:', err.message);
-        // fall through to browser TTS
+        console.warn('VOICEVOX 사용 실패 — 브라우저 TTS로 대체:', err.message);
+        // fall through to browser TTS so Newrosama always speaks
       }
     }
 
@@ -153,8 +170,51 @@ export class SpeechController {
 
   // ---- private ---------------------------------------------------------------
 
-  async _speakVoicevox(text, speakerId, endpoint) {
-    // Step 1: generate pronunciation/timing query
+  // Hosted VOICEVOX over HTTPS (api.tts.quest). Works on phones/tablets and
+  // GitHub Pages without installing anything. Without a key the request may be
+  // briefly queued, so we poll the status URL before playing.
+  async _speakVoicevoxWeb(text, speakerId, endpoint, key) {
+    const params = new URLSearchParams({ speaker: String(speakerId), text });
+    if (key) params.set('key', key);
+
+    const res = await fetch(`${endpoint}?${params.toString()}`);
+    if (!res.ok) throw new Error(`tts.quest ${res.status}`);
+    const data = await res.json();
+
+    if (data.success === false || data.errorMessage) {
+      throw new Error(data.errorMessage || 'tts.quest error');
+    }
+
+    const audioUrl = data.mp3StreamingUrl || data.wavDownloadUrl;
+    if (!audioUrl) throw new Error('no audio url in response');
+
+    // If a status URL is given, wait until the audio is actually ready.
+    if (data.audioStatusUrl) {
+      await this._waitForTtsQuest(data.audioStatusUrl, 15, 600);
+    }
+
+    return this._playUrl(audioUrl);
+  }
+
+  async _waitForTtsQuest(statusUrl, maxTries, delayMs) {
+    for (let i = 0; i < maxTries; i++) {
+      try {
+        const r = await fetch(statusUrl);
+        if (r.ok) {
+          const s = await r.json();
+          if (s.isAudioReady || s.isAudioError === false && s.isAudioReady !== false) return;
+          if (s.isAudioError) throw new Error('tts.quest audio error');
+        }
+      } catch {
+        // network blip — keep trying
+      }
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+    // Timed out waiting; let the caller try playing anyway.
+  }
+
+  // VOICEVOX desktop app on localhost (two-step audio_query -> synthesis).
+  async _speakVoicevoxLocal(text, speakerId, endpoint) {
     const queryRes = await fetch(
       `${endpoint}/audio_query?text=${encodeURIComponent(text)}&speaker=${speakerId}`,
       { method: 'POST' }
@@ -162,40 +222,34 @@ export class SpeechController {
     if (!queryRes.ok) throw new Error(`audio_query ${queryRes.status}`);
     const query = await queryRes.json();
 
-    // Tweak prosody for a slightly brighter, warmer sound
     query.speedScale = 1.05;
     query.pitchScale = 0.04;
     query.intonationScale = 1.1;
     query.volumeScale = 1.0;
 
-    // Step 2: synthesize WAV
-    const synthRes = await fetch(
-      `${endpoint}/synthesis?speaker=${speakerId}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(query),
-      }
-    );
+    const synthRes = await fetch(`${endpoint}/synthesis?speaker=${speakerId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(query),
+    });
     if (!synthRes.ok) throw new Error(`synthesis ${synthRes.status}`);
 
     const blob = await synthRes.blob();
     const url = URL.createObjectURL(blob);
+    try {
+      await this._playUrl(url);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
 
+  _playUrl(url) {
     return new Promise((resolve, reject) => {
       const audio = new Audio(url);
       this.onSpeakChange?.(true);
-      audio.onended = () => {
-        this.onSpeakChange?.(false);
-        URL.revokeObjectURL(url);
-        resolve();
-      };
-      audio.onerror = (e) => {
-        this.onSpeakChange?.(false);
-        URL.revokeObjectURL(url);
-        reject(e);
-      };
-      audio.play().catch(reject);
+      audio.onended = () => { this.onSpeakChange?.(false); resolve(); };
+      audio.onerror = (e) => { this.onSpeakChange?.(false); reject(e); };
+      audio.play().catch((e) => { this.onSpeakChange?.(false); reject(e); });
     });
   }
 

@@ -9,7 +9,7 @@
     style-src 'self' 'unsafe-inline';
     connect-src *;
     img-src 'self' data: blob: https:;
-    media-src 'self' blob:;
+    media-src 'self' blob: https:;
     worker-src 'self' blob:;
   ">
   <title>Newrosama — Project Kaguya</title>
@@ -68,35 +68,41 @@
 
         <hr class="sep">
 
-        <h2>🎤 VOICEVOX 연결 (Mao용 JP 여성 목소리)</h2>
+        <h2>🎤 히마리 목소리 (VOICEVOX)</h2>
         <p class="hint">
-          VOICEVOX를 PC에 설치해 실행해두면 뉴로사마가 진짜 애니 캐릭터 목소리로 말해요.<br>
-          일본어 전용 — 한국어/영어는 아래 "목소리 스타일"을 사용해요.<br>
-          VOICEVOX가 꺼져 있거나 연결 실패 시 자동으로 브라우저 음성으로 대체됩니다.<br><br>
-          <strong>보이스 ID표:</strong><br>
-          <code>14</code> 冥鳴ひまり ノーマル — <strong>★ 현재 선택</strong>: 기품 있고 따뜻한 저승사자 소녀<br>
-          <code>8</code> 春日部つむぎ ノーマル — 밝고 활기찬 18세 고교생<br>
-          <code>0</code> 四国めたん あまあま — 달콤하고 귀여운 목소리<br>
-          <code>46</code> 小夜/SAYO — 따뜻하고 조용한 고양이 소녀<br>
-          <code>20</code> もち子さん — 폭신폭신한 부드러운 목소리<br><br>
-          ⚠️ 페이지가 HTTPS(GitHub Pages)에 올려져 있다면 localhost(HTTP)로의
-          연결이 브라우저 보안 정책에 의해 막힐 수 있어요. 그럴 땐 로컬에서
-          직접 파일을 열거나(파일 경로) 로컬 서버(<code>npx serve</code>)를 쓰세요.
+          뉴로사마가 일본어를 말할 때 <strong>冥鳴ひまり(히마리, ID 14)</strong> 목소리로 말해요.
+          한국어/영어는 아래 "목소리 스타일"의 브라우저 음성을 써요.
+          어떤 모드든 실패하면 자동으로 브라우저 음성으로 대체돼요.<br><br>
+          <strong>모드 설명:</strong><br>
+          • <strong>웹(tts.quest)</strong> — ★ 태블릿/휴대폰/GitHub Pages용. 설치 불필요, HTTPS로 작동.
+            키 없이도 되지만, 키를 넣으면 더 빨라요.<br>
+          • <strong>로컬(localhost)</strong> — PC에 VOICEVOX 앱 설치 시. 가장 빠르고 품질 좋음. 태블릿 불가.<br>
+          • <strong>끄기</strong> — 브라우저 기본 음성만 사용.<br><br>
+          <strong>보이스 ID표:</strong>
+          <code>14</code> 冥鳴ひまり(★현재) /
+          <code>8</code> 春日部つむぎ /
+          <code>0</code> 四国めたん あまあま /
+          <code>46</code> 小夜SAYO /
+          <code>20</code> もち子さん
         </p>
-        <div class="field" style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-          <input type="checkbox" id="voicevox-enable" style="width:auto;height:16px;accent-color:#ff7fae">
-          <label for="voicevox-enable" style="margin:0;font-size:13px">VOICEVOX 사용</label>
-        </div>
         <div class="row">
           <div class="field">
-            <label for="voicevox-speaker">Speaker ID</label>
-            <input type="number" id="voicevox-speaker" value="8" min="0" max="999"
-                   placeholder="8 (春日部つむぎ)">
+            <label for="voicevox-mode">모드</label>
+            <select id="voicevox-mode">
+              <option value="web">웹 (tts.quest) — 태블릿/웹용 ★</option>
+              <option value="local">로컬 (PC VOICEVOX 앱)</option>
+              <option value="off">끄기 (브라우저 음성)</option>
+            </select>
           </div>
           <div class="field">
-            <label for="voicevox-endpoint">VOICEVOX 주소</label>
-            <input type="text" id="voicevox-endpoint" placeholder="http://localhost:50021">
+            <label for="voicevox-speaker">Speaker ID</label>
+            <input type="number" id="voicevox-speaker" value="14" min="0" max="999"
+                   placeholder="14 (冥鳴ひまり)">
           </div>
+        </div>
+        <div class="field">
+          <label for="voicevox-key">tts.quest API 키 (선택 — 웹 모드 속도 향상)</label>
+          <input type="password" id="voicevox-key" placeholder="비워두면 무료/느린 모드로 작동">
         </div>
         <button class="btn primary" id="save-voicevox" style="margin-top:4px;margin-bottom:4px">저장</button>
         <p id="voicevox-status" class="hint"></p>
