@@ -133,7 +133,7 @@ const voicevoxStatus = document.getElementById('voicevox-status');
 
 // Restore saved settings
 voicevoxEnable.checked = localStorage.getItem('kaguya_vv_enabled') === 'true';
-voicevoxSpeaker.value = localStorage.getItem('kaguya_vv_speaker') || '8';
+voicevoxSpeaker.value = localStorage.getItem('kaguya_vv_speaker') || '14';
 voicevoxEndpoint.value = localStorage.getItem('kaguya_vv_endpoint') || 'http://localhost:50021';
 
 // Apply on load

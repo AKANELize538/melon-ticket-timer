@@ -39,10 +39,10 @@ export const VOICE_PERSONAS = {
 };
 
 // Default VOICEVOX configuration.
-// Speaker 8 = 春日部つむぎ (ノーマル) — recommended for Mao.
+// Speaker 14 = 冥鳴ひまり (ノーマル) — selected for Mao.
 const VOICEVOX_DEFAULTS = {
   enabled: false,
-  speakerId: 8,
+  speakerId: 14,
   endpoint: 'http://localhost:50021',
 };
 
