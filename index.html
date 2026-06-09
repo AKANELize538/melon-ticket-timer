@@ -3,82 +3,173 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src *;">
-  <title>멜론 티켓 시계</title>
-  <style>
-    body { 
-      display: flex; flex-direction: column; align-items: center; 
-      justify-content: center; height: 100vh; margin: 0;
-      background: #000; color: #fff; font-family: monospace;
-    }
-    #clock { font-size: 72px; font-weight: bold; letter-spacing: 4px; }
-    #status { font-size: 14px; color: #888; margin-top: 12px; }
-    #sync { font-size: 12px; color: #555; margin-top: 6px; }
-  </style>
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cubism.live2d.com;
+    style-src 'self' 'unsafe-inline';
+    connect-src *;
+    img-src 'self' data: blob: https:;
+    media-src 'self' blob: https:;
+    worker-src 'self' blob:;
+  ">
+  <title>Newrosama — Project Kaguya</title>
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div id="clock">동기화 중...</div>
-  <div id="status"></div>
-  <div id="sync"></div>
+  <div id="app">
+    <canvas id="stage"></canvas>
 
-  <script>
-    const PROXY = 'https://melon-time-proxy.vercel.app/api/melon-time';
-    let offset = 0;
+    <div id="overlay">
+      <header>
+        <h1>Newrosama<span>PROJECT KAGUYA</span></h1>
+        <div id="lang-switch">
+          <button data-lang="ko" class="active">한국어</button>
+          <button data-lang="ja">日本語</button>
+          <button data-lang="en">English</button>
+        </div>
+      </header>
 
-    function sleep(ms) {
-      return new Promise(r => setTimeout(r, ms));
-    }
+      <div id="caption">
+        <p id="user-line"></p>
+        <p id="ai-line">やあ! ニューロサマだよ 🌙 マイクボタンを押して話しかけてね！ (한국어 / English도 OK)</p>
+      </div>
 
-    async function syncTime() {
-      document.getElementById('sync').textContent = '동기화 중...';
-      const results = [];
+      <div id="controls">
+        <button id="settings-btn" title="설정 (아바타 / AI 연결)">⚙</button>
+        <button id="mic-btn" title="눌러서 말하기">🎤</button>
+      </div>
+    </div>
 
-      for (let i = 0; i < 8; i++) {
-        try {
-          const t0 = performance.now();
-          const res = await fetch(PROXY + '?t=' + t0);
-          const data = await res.json();
-          const t1 = performance.now();
-          const rtt = t1 - t0;
-          const off = data.serverMs - (t0 + rtt / 2);
-          results.push({ rtt, off });
-        } catch(e) {}
-        await sleep(200);
-      }
+    <dialog id="settings">
+      <div class="settings-body">
+        <h2>Live2D 모델 불러오기</h2>
+        <p class="hint">
+          Live2D 모델 파일(<code>.model3.json</code>)을 로드하면 뉴로사마가 살아 움직여요.
+          무료 모델을 어디서 구할 수 있는지는
+          <code>docs/free-resources.md</code>를 확인하세요.
+          라이브러리가 필요해요 — 아래의 "로드 안 됨" 상태가 뜨면
+          <code>SETUP.md</code> 안내를 따라 SDK 파일을 추가해주세요.
+        </p>
+        <div class="field">
+          <label for="model-file">내 컴퓨터에서 <strong>모델 폴더 전체</strong> 선택 (mao_pro_ko 폴더)</label>
+          <input type="file" id="model-file" webkitdirectory directory multiple>
+          <span class="hint" style="display:block;margin-top:4px">
+            ※ Live2D는 폴더 전체(.moc3·텍스처·모션 포함)가 필요해요. 단일 파일 X
+          </span>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="model-url">또는 .model3.json URL 입력 (GitHub Pages 등)</label>
+            <input type="text" id="model-url" placeholder="https://example.com/model/model.model3.json">
+          </div>
+          <button class="btn primary" id="load-model" style="align-self:flex-end; height:40px;">불러오기</button>
+        </div>
+        <p id="model-status" class="hint"></p>
 
-      const best = results.sort((a, b) => a.rtt - b.rtt).slice(0, 3);
-      offset = best.reduce((s, r) => s + r.off, 0) / best.length;
+        <hr class="sep">
 
-      document.getElementById('status').textContent = 
-        `불확실도 ±${(best[0].rtt / 2).toFixed(1)}ms`;
-      document.getElementById('sync').textContent = 
-        `마지막 동기화: ${new Date().toLocaleTimeString('ko-KR')}`;
-    }
+        <h2>🎤 히마리 목소리 (VOICEVOX)</h2>
+        <p class="hint">
+          뉴로사마가 일본어를 말할 때 <strong>冥鳴ひまり(히마리, ID 14)</strong> 목소리로 말해요.
+          한국어/영어는 아래 "목소리 스타일"의 브라우저 음성을 써요.
+          어떤 모드든 실패하면 자동으로 브라우저 음성으로 대체돼요.<br><br>
+          <strong>모드 설명:</strong><br>
+          • <strong>웹(tts.quest)</strong> — ★ 태블릿/휴대폰/GitHub Pages용. 설치 불필요, HTTPS로 작동.
+            키 없이도 되지만, 키를 넣으면 더 빨라요.<br>
+          • <strong>로컬(localhost)</strong> — PC에 VOICEVOX 앱 설치 시. 가장 빠르고 품질 좋음. 태블릿 불가.<br>
+          • <strong>끄기</strong> — 브라우저 기본 음성만 사용.<br><br>
+          <strong>보이스 ID표:</strong>
+          <code>14</code> 冥鳴ひまり(★현재) /
+          <code>8</code> 春日部つむぎ /
+          <code>0</code> 四国めたん あまあま /
+          <code>46</code> 小夜SAYO /
+          <code>20</code> もち子さん
+        </p>
+        <div class="row">
+          <div class="field">
+            <label for="voicevox-mode">모드</label>
+            <select id="voicevox-mode">
+              <option value="web">웹 (tts.quest) — 태블릿/웹용 ★</option>
+              <option value="local">로컬 (PC VOICEVOX 앱)</option>
+              <option value="off">끄기 (브라우저 음성)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="voicevox-speaker">Speaker ID</label>
+            <input type="number" id="voicevox-speaker" value="14" min="0" max="999"
+                   placeholder="14 (冥鳴ひまり)">
+          </div>
+        </div>
+        <div class="field">
+          <label for="voicevox-key">tts.quest API 키 (선택 — 웹 모드 속도 향상)</label>
+          <input type="password" id="voicevox-key" placeholder="비워두면 무료/느린 모드로 작동">
+        </div>
+        <button class="btn primary" id="save-voicevox" style="margin-top:4px;margin-bottom:4px">저장</button>
+        <p id="voicevox-status" class="hint"></p>
 
-    function getMelonTime() {
-      return Date.now() + offset;
-    }
+        <hr class="sep">
 
-    function formatTime(ms) {
-      const kstMs = ms + (9 * 60 * 60 * 1000);
-      const d = new Date(kstMs);
-      const h  = String(d.getUTCHours()).padStart(2, '0');
-      const m  = String(d.getUTCMinutes()).padStart(2, '0');
-      const s  = String(d.getUTCSeconds()).padStart(2, '0');
-      const cs = String(Math.floor(d.getUTCMilliseconds() / 10)).padStart(2, '0');
-      return `${h}:${m}:${s}.${cs}`;
-    }
+        <h2>목소리 스타일</h2>
+        <p class="hint">
+          브라우저에 설치된 음성 중에서 골라요. "JARVIS 스타일"은 영어일 때
+          가장 그럴듯하게 들려요(시스템에 차분한 영국식 남성 음성이 있다면).
+        </p>
+        <div class="field">
+          <label for="voice-persona">목소리</label>
+          <select id="voice-persona">
+            <option value="girl">발랄한 소녀 (기본)</option>
+            <option value="jarvis">차분한 집사 AI — JARVIS 스타일</option>
+          </select>
+        </div>
 
-    function startClock() {
-      const tick = () => {
-        document.getElementById('clock').textContent = formatTime(getMelonTime());
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-      setInterval(syncTime, 30000);
-    }
+        <hr class="sep">
 
-    syncTime().then(startClock);
-  </script>
+        <h2>AI 두뇌 연결 (선택)</h2>
+        <p class="hint">
+          비워두면 데모용 답변으로 작동해요. 아래는 <strong>Groq의 무료
+          Llama 3.3 70B</strong>를 바로 연결하는 예시 — Groq 콘솔에서 발급받은
+          키를 붙여넣고 저장하면 끝이에요.<br><br>
+          ⚠️ <strong>키는 이 입력창에만 붙여넣으세요.</strong> 채팅창이나
+          이슈, 커밋에 적으면 즉시 노출된 것으로 간주해요.
+          입력값은 이 브라우저의 localStorage에만 저장돼요.
+        </p>
+        <div class="field">
+          <label for="api-endpoint">엔드포인트 URL</label>
+          <input type="text" id="api-endpoint"
+                 placeholder="https://api.groq.com/openai/v1/chat/completions">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="api-model">모델 이름</label>
+            <input type="text" id="api-model" placeholder="llama-3.3-70b-versatile">
+          </div>
+          <div class="field">
+            <label for="api-key">API 키</label>
+            <input type="password" id="api-key" placeholder="gsk_... / sk-...">
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button class="btn ghost" id="close-settings">닫기</button>
+          <button class="btn primary" id="save-creds">저장</button>
+        </div>
+      </div>
+    </dialog>
+  </div>
+
+  <!--
+    Live2D dependency loading order — all three must load before main.js:
+      1. PIXI.js       — 2D renderer, creates window.PIXI
+      2. live2dcubism  — Live2D Cubism Core, registers cubism internals
+      3. pixi-live2d   — bridges PIXI + Cubism, adds PIXI.live2d.Live2DModel
+
+    If live2dcubismcore.min.js fails (404), download the free "Cubism SDK
+    for Web" from https://www.live2d.com/download/cubism-sdk/ and place the
+    file at libs/live2dcubismcore.min.js, then switch the src below.
+  -->
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.3.3/dist/pixi.min.js"></script>
+  <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
