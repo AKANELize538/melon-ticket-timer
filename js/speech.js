@@ -1,6 +1,12 @@
-// Speech I/O for Newrosama: microphone -> text (STT) and text -> voice (TTS).
-// Built entirely on the browser-native Web Speech API, so it works for free
-// with no server and no API key. Best support is in Chrome / Edge.
+// Speech I/O for Newrosama.
+//
+// Two TTS providers, used in this priority order:
+//   1. VOICEVOX (enabled in Settings) — high-quality anime-character voice,
+//      requires the VOICEVOX app running locally on port 50021.
+//      Only activates for Japanese; other languages fall through to provider 2.
+//   2. Browser SpeechSynthesis — built-in, free, works everywhere, no setup.
+//
+// STT uses the browser's SpeechRecognition API (Chrome / Edge only).
 
 export const LANGUAGES = {
   ko: { code: 'ko-KR', label: '한국어' },
@@ -8,12 +14,6 @@ export const LANGUAGES = {
   en: { code: 'en-US', label: 'English' },
 };
 
-// Two voice "personas" Newrosama can speak in. Each lists name fragments that
-// usually belong to that kind of system/browser voice, plus a pitch/rate that
-// pushes the built-in voice toward that character.
-//   - girl:   bright, friendly anime-character tone (default)
-//   - jarvis: calm, composed "AI butler" tone, à la Iron Man's J.A.R.V.I.S.
-//             (works best in English — pick a UK male voice if your system has one)
 export const VOICE_PERSONAS = {
   girl: {
     label: '발랄한 소녀',
@@ -38,7 +38,15 @@ export const VOICE_PERSONAS = {
   },
 };
 
-function pickVoice(langCode, persona) {
+// Default VOICEVOX configuration.
+// Speaker 8 = 春日部つむぎ (ノーマル) — recommended for Mao.
+const VOICEVOX_DEFAULTS = {
+  enabled: false,
+  speakerId: 8,
+  endpoint: 'http://localhost:50021',
+};
+
+function pickBrowserVoice(langCode, persona) {
   const voices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
   if (!voices.length) return null;
 
@@ -58,10 +66,11 @@ export class SpeechController {
   constructor({ onResult, onListenChange, onSpeakChange, onError } = {}) {
     const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
     this.supported = !!SpeechRecognitionImpl;
-    this.lang = 'ko';
+    this.lang = 'ja';
     this.persona = 'girl';
     this.onSpeakChange = onSpeakChange;
     this.onError = onError;
+    this.voicevox = { ...VOICEVOX_DEFAULTS };
 
     if (this.supported) {
       this.recognition = new SpeechRecognitionImpl();
@@ -81,7 +90,6 @@ export class SpeechController {
       };
     }
 
-    // Some browsers populate the voice list asynchronously.
     if (window.speechSynthesis) {
       speechSynthesis.onvoiceschanged = () => {};
     }
@@ -98,14 +106,22 @@ export class SpeechController {
     this.persona = key;
   }
 
+  configureVoicevox(enabled, speakerId, endpoint) {
+    this.voicevox = {
+      enabled: !!enabled,
+      speakerId: Number(speakerId) || VOICEVOX_DEFAULTS.speakerId,
+      endpoint: endpoint || VOICEVOX_DEFAULTS.endpoint,
+    };
+  }
+
   startListening() {
     if (!this.recognition) return;
     speechSynthesis?.cancel();
     this.recognition.lang = LANGUAGES[this.lang].code;
     try {
       this.recognition.start();
-    } catch (err) {
-      // start() throws if it's already running; ignore.
+    } catch {
+      // already running — ignore
     }
   }
 
@@ -113,18 +129,87 @@ export class SpeechController {
     this.recognition?.stop();
   }
 
-  speak(text, langKey = this.lang, personaKey = this.persona) {
-    if (!window.speechSynthesis || !text) return;
-    speechSynthesis.cancel();
+  async speak(text, langKey = this.lang, personaKey = this.persona) {
+    if (!text) return;
+    speechSynthesis?.cancel();
 
+    // Use VOICEVOX for Japanese when it's enabled.
+    if (this.voicevox.enabled && langKey === 'ja') {
+      try {
+        await this._speakVoicevox(text, this.voicevox.speakerId, this.voicevox.endpoint);
+        return;
+      } catch (err) {
+        console.warn('VOICEVOX 연결 실패 — 브라우저 TTS로 대체:', err.message);
+        // fall through to browser TTS
+      }
+    }
+
+    this._speakBrowser(text, langKey, personaKey);
+  }
+
+  stopSpeaking() {
+    speechSynthesis?.cancel();
+  }
+
+  // ---- private ---------------------------------------------------------------
+
+  async _speakVoicevox(text, speakerId, endpoint) {
+    // Step 1: generate pronunciation/timing query
+    const queryRes = await fetch(
+      `${endpoint}/audio_query?text=${encodeURIComponent(text)}&speaker=${speakerId}`,
+      { method: 'POST' }
+    );
+    if (!queryRes.ok) throw new Error(`audio_query ${queryRes.status}`);
+    const query = await queryRes.json();
+
+    // Tweak prosody for a slightly brighter, warmer sound
+    query.speedScale = 1.05;
+    query.pitchScale = 0.04;
+    query.intonationScale = 1.1;
+    query.volumeScale = 1.0;
+
+    // Step 2: synthesize WAV
+    const synthRes = await fetch(
+      `${endpoint}/synthesis?speaker=${speakerId}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(query),
+      }
+    );
+    if (!synthRes.ok) throw new Error(`synthesis ${synthRes.status}`);
+
+    const blob = await synthRes.blob();
+    const url = URL.createObjectURL(blob);
+
+    return new Promise((resolve, reject) => {
+      const audio = new Audio(url);
+      this.onSpeakChange?.(true);
+      audio.onended = () => {
+        this.onSpeakChange?.(false);
+        URL.revokeObjectURL(url);
+        resolve();
+      };
+      audio.onerror = (e) => {
+        this.onSpeakChange?.(false);
+        URL.revokeObjectURL(url);
+        reject(e);
+      };
+      audio.play().catch(reject);
+    });
+  }
+
+  _speakBrowser(text, langKey, personaKey) {
+    if (!window.speechSynthesis) return;
     const langCode = (LANGUAGES[langKey] || LANGUAGES.en).code;
     const persona = VOICE_PERSONAS[personaKey] || VOICE_PERSONAS.girl;
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = langCode;
     utterance.rate = persona.rate;
     utterance.pitch = persona.pitch;
 
-    const voice = pickVoice(langCode, personaKey);
+    const voice = pickBrowserVoice(langCode, personaKey);
     if (voice) utterance.voice = voice;
 
     utterance.onstart = () => this.onSpeakChange?.(true);
@@ -132,9 +217,5 @@ export class SpeechController {
     utterance.onerror = () => this.onSpeakChange?.(false);
 
     speechSynthesis.speak(utterance);
-  }
-
-  stopSpeaking() {
-    speechSynthesis?.cancel();
   }
 }

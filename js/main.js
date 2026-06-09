@@ -122,3 +122,51 @@ saveCredsBtn.addEventListener('click', () => {
   saveCredsBtn.textContent = '저장됨 ✓';
   setTimeout(() => (saveCredsBtn.textContent = '저장'), 1500);
 });
+
+// ---- VOICEVOX settings ------------------------------------------------------
+
+const voicevoxEnable = document.getElementById('voicevox-enable');
+const voicevoxSpeaker = document.getElementById('voicevox-speaker');
+const voicevoxEndpoint = document.getElementById('voicevox-endpoint');
+const saveVoicevoxBtn = document.getElementById('save-voicevox');
+const voicevoxStatus = document.getElementById('voicevox-status');
+
+// Restore saved settings
+voicevoxEnable.checked = localStorage.getItem('kaguya_vv_enabled') === 'true';
+voicevoxSpeaker.value = localStorage.getItem('kaguya_vv_speaker') || '8';
+voicevoxEndpoint.value = localStorage.getItem('kaguya_vv_endpoint') || 'http://localhost:50021';
+
+// Apply on load
+speech.configureVoicevox(voicevoxEnable.checked, voicevoxSpeaker.value, voicevoxEndpoint.value);
+
+saveVoicevoxBtn.addEventListener('click', async () => {
+  const enabled = voicevoxEnable.checked;
+  const speakerId = parseInt(voicevoxSpeaker.value) || 8;
+  const endpoint = voicevoxEndpoint.value.trim() || 'http://localhost:50021';
+
+  localStorage.setItem('kaguya_vv_enabled', enabled);
+  localStorage.setItem('kaguya_vv_speaker', speakerId);
+  localStorage.setItem('kaguya_vv_endpoint', endpoint);
+  speech.configureVoicevox(enabled, speakerId, endpoint);
+
+  if (enabled) {
+    voicevoxStatus.textContent = '연결 테스트 중...';
+    try {
+      const res = await fetch(`${endpoint}/speakers`, { method: 'GET' });
+      if (res.ok) {
+        const speakers = await res.json();
+        voicevoxStatus.textContent =
+          `연결 성공 ✓ — 사용 가능한 보이스 ${speakers.length}개`;
+      } else {
+        voicevoxStatus.textContent = `서버 응답 오류: ${res.status}`;
+      }
+    } catch {
+      voicevoxStatus.textContent =
+        '연결 실패 — VOICEVOX가 실행 중인지 확인해주세요 (또는 HTTPS 혼합 콘텐츠 차단)';
+    }
+  } else {
+    voicevoxStatus.textContent = '';
+    saveVoicevoxBtn.textContent = '저장됨 ✓';
+    setTimeout(() => (saveVoicevoxBtn.textContent = '저장'), 1500);
+  }
+});
