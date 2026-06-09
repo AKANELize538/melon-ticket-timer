@@ -18,6 +18,7 @@ export class AvatarStage {
     this.live2dModel = null;
     this._talking = false;
     this._t = 0;
+    this._lipSyncIds = ['ParamA', 'ParamMouthOpenY'];
 
     this.app = new PIXI.Application({
       view: canvas,
@@ -55,20 +56,44 @@ export class AvatarStage {
     this._talking = isTalking;
   }
 
-  // Continuously drive the Live2D mouth-open parameter so the model's lips
-  // move while Newrosama is speaking. Falls back silently if the model has
-  // no such parameter.
+  // Continuously drive the Live2D mouth-open parameter(s) so the model's lips
+  // move while Newrosama is speaking. Different models name this differently —
+  // the Mao sample uses "ParamA" (declared in its model3.json LipSync group),
+  // while many VRoid/Cubism models use "ParamMouthOpenY". We read the real
+  // LipSync ids from the model on load, and fall back to common names.
   _driveLipSync() {
     const core = this.live2dModel?.internalModel?.coreModel;
     if (!core) return;
-    const target = this._talking
-      ? Math.abs(Math.sin(this._t * 14)) * 0.9
-      : 0;
-    try {
-      core.setParameterValueById('ParamMouthOpenY', target);
-    } catch {
-      // Some models name the param differently; ignore if missing.
+    const target = this._talking ? Math.abs(Math.sin(this._t * 14)) * 0.9 : 0;
+    for (const id of this._lipSyncIds) {
+      try {
+        core.setParameterValueById(id, target);
+      } catch {
+        // param not present on this model — ignore
+      }
     }
+  }
+
+  // Read the model's declared LipSync parameter ids from its settings, with
+  // sensible fallbacks so lip-sync works even if the group is missing.
+  _resolveLipSyncIds(model) {
+    const fallback = ['ParamA', 'ParamMouthOpenY'];
+    try {
+      const groups =
+        model?.internalModel?.settings?.groups ||
+        model?.internalModel?.settings?.json?.Groups ||
+        [];
+      const lip = groups.find(
+        (g) => (g.Name || g.name || '').toLowerCase() === 'lipsync'
+      );
+      const ids = lip?.Ids || lip?.ids;
+      if (Array.isArray(ids) && ids.length) {
+        return [...new Set([...ids, ...fallback])];
+      }
+    } catch {
+      // settings shape varies between versions — just use fallback
+    }
+    return fallback;
   }
 
   /**
@@ -97,12 +122,17 @@ export class AvatarStage {
     const model = await Live2DModel.from(source, { autoInteract: true });
     this.placeholder.visible = false;
     this.live2dModel = model;
+    this._lipSyncIds = this._resolveLipSyncIds(model);
     this.app.stage.addChild(model);
     this._fitModel(model);
 
+    // Tapping the avatar plays a random expression/motion (Mao has 8 of each).
     model.on('hit', (hitAreas) => {
-      if (hitAreas.includes('Head')) model.motion('tap_head');
-      if (hitAreas.includes('Body')) model.motion('tap_body');
+      if (hitAreas.includes('Head') || hitAreas.includes('HitAreaHead')) {
+        model.expression?.();
+      } else {
+        model.motion?.('');
+      }
     });
 
     return model;

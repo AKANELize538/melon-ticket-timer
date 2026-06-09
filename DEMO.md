@@ -30,19 +30,25 @@
 2. 왼쪽 파일 탐색기에서 `models/` 폴더 위에 마우스 우클릭 → `Upload...`
    (또는 `mao_pro_ko` 폴더를 통째로 드래그 앤 드롭)
 3. 사장님 모델은 `mao_pro_ko\runtime\` 안에 들어있어요. 그 **runtime 폴더
-   안의 내용물 전부**를 `models/mao/` 에 올리면 이렇게 돼야 해요:
+   안의 내용물 전부(하위 폴더 포함)** 를 `models/mao/` 에 올려야 해요.
+   model3.json을 분석해보니 정확히 이 구조가 필요해요:
    ```
-   models/
-     mao/
-       mao_pro.model3.json   ← 진짜 모델 파일 (★ 이게 핵심)
-       mao_pro.cdi3.json     ← 보조 파일 (있어도 됨)
-       mao_pro.moc3
-       *.png (텍스처)
-       motions/ ...
-       mao_pro.physics3.json (있으면 머리카락 흔들림)
+   models/mao/
+     mao_pro.model3.json        ← 진짜 모델 파일 (★ 핵심)
+     mao_pro.moc3               ← 모델 데이터
+     mao_pro.cdi3.json          ← 보조(파라미터 이름)
+     mao_pro.physics3.json      ← 흔들림(머리/모자/로브 16종)
+     mao_pro.pose3.json         ← 팔 파트
+     mao_pro.4096/
+       texture_00.png           ← ⚠️ 텍스처(하위폴더! 꼭 같이)
+     expressions/
+       exp_01.exp3.json ~ exp_08.exp3.json   ← 표정 8종
+     motions/
+       mtn_01~04.motion3.json, special_01~03.motion3.json  ← 모션 7종
    ```
-   ⚠️ `.cdi3.json` 은 모델 파일이 아니에요. 반드시 `.model3.json` 이
-   같이 올라가야 해요.
+   ⚠️ **`mao_pro.4096/` 폴더(텍스처)와 `expressions/`, `motions/` 폴더를
+   빠뜨리면 안 돼요.** 하나라도 빠지면 모델이 깨지거나 안 떠요.
+   `.cdi3.json` 은 모델 파일이 아니라 보조 파일이에요.
 4. Codespace 터미널에서:
    ```bash
    git add models/
