@@ -29,15 +29,20 @@
 1. GitHub 저장소 → `Code` ▸ `Codespaces` ▸ 새 Codespace 열기
 2. 왼쪽 파일 탐색기에서 `models/` 폴더 위에 마우스 우클릭 → `Upload...`
    (또는 `mao_pro_ko` 폴더를 통째로 드래그 앤 드롭)
-3. 업로드 후 폴더 구조가 이렇게 되어야 해요:
+3. 사장님 모델은 `mao_pro_ko\runtime\` 안에 들어있어요. 그 **runtime 폴더
+   안의 내용물 전부**를 `models/mao/` 에 올리면 이렇게 돼야 해요:
    ```
    models/
      mao/
-       mao.model3.json     ← 이 파일명이 중요! (아래 2단계 참고)
-       mao.moc3
+       mao_pro.model3.json   ← 진짜 모델 파일 (★ 이게 핵심)
+       mao_pro.cdi3.json     ← 보조 파일 (있어도 됨)
+       mao_pro.moc3
        *.png (텍스처)
        motions/ ...
+       mao_pro.physics3.json (있으면 머리카락 흔들림)
    ```
+   ⚠️ `.cdi3.json` 은 모델 파일이 아니에요. 반드시 `.model3.json` 이
+   같이 올라가야 해요.
 4. Codespace 터미널에서:
    ```bash
    git add models/
@@ -51,17 +56,14 @@ mao_pro_ko 폴더 안 파일 전부 드래그 → Commit.
 
 ---
 
-## 2단계 — 모델 파일명 확인 (중요!)
+## 2단계 — 모델 파일명 (확인 완료 ✓)
 
-`mao_pro_ko` 폴더 안의 `.model3.json` **실제 파일 이름**을 확인하세요.
-예: `Mao.model3.json`, `マオ.model3.json`, `mao_pro.model3.json` 등.
-
-그 이름을 `js/config.js`의 `modelPath`에 정확히 적어야 자동 로드돼요:
+사장님 모델 파일명은 **`mao_pro.model3.json`** 으로 확인됐어요.
+`js/config.js` 에 이미 맞춰뒀어요:
 ```js
-modelPath: 'models/mao/여기에_실제파일명.model3.json',
+modelPath: 'models/mao/mao_pro.model3.json',
 ```
-파일명을 알려주시면 제가 바로 맞춰서 수정할게요. (또는 파일을
-`mao.model3.json`으로 rename 하면 현재 설정 그대로 작동해요.)
+runtime 폴더 내용을 `models/mao/` 에 그대로 올리면 자동 로드돼요.
 
 ---
 

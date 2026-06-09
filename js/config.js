@@ -11,11 +11,12 @@ export const CONFIG = {
   // on startup. If the file isn't there yet, the cute placeholder character
   // is shown instead (no error).
   //
-  // ▸ Set to the real filename inside your folder, e.g.:
-  //     'models/mao/Mao.model3.json'
-  //     'models/mao/mao_pro_ko.model3.json'
+  // ▸ Your model is exported under  mao_pro_ko\runtime\  and the real model
+  //   file is  mao_pro.model3.json  (the .cdi3.json next to it is just an
+  //   editor display-info file, NOT the model). Upload the CONTENTS of the
+  //   runtime folder into  models/mao/  so this path resolves.
   // ▸ Set to null to always start with the placeholder character.
-  modelPath: 'models/mao/mao.model3.json',
+  modelPath: 'models/mao/mao_pro.model3.json',
 
   // Try to auto-load modelPath when the page opens (best for the tablet demo,
   // so you don't have to pick a folder by hand on the device).
